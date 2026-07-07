@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IMS Internal Audit Monitoring — Big Ben Group</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<style>
+  :root{--maroon:#7B1C1C;--maroon-dark:#5e1414;--gold:#C9A24B;--gold-soft:#e7d29a;--ink:#221a18;--paper:#f6f3ee;--card:#fff;--line:#e3dccf;--muted:#7a6f66;--green:#2e7d4f;--amber:#c98a16;--red:#b3261e;--blue:#2c5d86;--shadow:0 1px 2px rgba(34,26,24,.06),0 8px 24px rgba(34,26,24,.06);}
+  body.dark{--paper:#1c1715;--card:#262019;--line:#3a322a;--ink:#f0e9df;--muted:#a99e92;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.4);}
+  *{box-sizing:border-box;} html,body{margin:0;padding:0;}
+  body{font-family:Arial,Helvetica,sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  button{font-family:inherit;cursor:pointer;} input,select,textarea{font-family:inherit;font-size:14px;}
+  /* GATE */
+  #gate{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#5e1414,#7B1C1C 60%,#3d0e0e);display:flex;align-items:center;justify-content:center;}
+  .gate-card{background:#fff;width:min(390px,92vw);border-radius:14px;padding:34px 30px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.4);border-top:5px solid var(--gold);}
+  .gate-card .crest{width:54px;height:54px;border-radius:12px;margin:0 auto 14px;background:var(--maroon);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:22px;}
+  .gate-card h1{font-size:17px;margin:0 0 4px;color:var(--maroon);} .gate-card p{font-size:12px;color:#7a6f66;margin:0 0 18px;}
+  .gate-card input{width:100%;padding:11px;border:1px solid #e3dccf;border-radius:8px;margin-bottom:10px;color:#221a18;}
+  .gate-card input.pin{text-align:center;letter-spacing:6px;font-size:18px;}
+  .gate-card button{width:100%;padding:12px;border:0;border-radius:8px;background:var(--maroon);color:#fff;font-weight:bold;font-size:14px;}
+  .gate-err{color:var(--red);font-size:12px;height:16px;margin-top:8px;} .gate-hint{font-size:11px;color:#9a8f84;margin-top:10px;}
+  /* SHELL */
+  header.appbar{background:var(--maroon);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,.15);flex-wrap:wrap;}
+  .appbar .crest{width:36px;height:36px;border-radius:9px;background:rgba(255,255,255,.08);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:bold;border:1px solid var(--gold);font-size:14px;}
+  .appbar .titles strong{font-size:14px;display:block;} .appbar .titles span{font-size:11px;color:var(--gold-soft);}
+  .appbar .spacer{flex:1;}
+  .appbar select{background:rgba(0,0,0,.2);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:7px;padding:6px 9px;font-size:12px;font-weight:bold;}
+  .appbar select option{color:#221a18;}
+  .iconbtn{background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;padding:6px 10px;font-size:13px;}
+  .sync{display:flex;align-items:center;gap:6px;font-size:11px;background:rgba(0,0,0,.18);padding:6px 11px;border-radius:20px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#9a9a9a;} .dot.live{background:#46d17e;animation:pulse 2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(70,209,126,.6);}70%{box-shadow:0 0 0 7px rgba(70,209,126,0);}100%{box-shadow:0 0 0 0 rgba(70,209,126,0);}}
+  nav.tabs{background:var(--maroon-dark);display:flex;padding:0 8px;overflow-x:auto;position:sticky;top:56px;z-index:40;}
+  nav.tabs button{background:none;border:0;color:#e8d9c4;padding:11px 13px;font-size:12.5px;font-weight:bold;border-bottom:3px solid transparent;white-space:nowrap;}
+  nav.tabs button.active{color:#fff;border-bottom-color:var(--gold);} nav.tabs button:hover{color:#fff;}
+  #ribbon{display:none;background:var(--red);color:#fff;font-size:13px;font-weight:bold;padding:8px 16px;text-align:center;}
+  main{max-width:1240px;margin:0 auto;padding:20px 16px 60px;}
+  .view{display:none;} .view.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;}}
+  .demo-banner{background:#fff6e0;border:1px solid var(--gold);color:#7a5a10;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;} body.dark .demo-banner{background:#332a15;color:var(--gold-soft);}
+  .page-head{display:flex;align-items:center;gap:12px;margin:0 0 16px;flex-wrap:wrap;}
+  .page-head h2{font-size:19px;color:var(--maroon);margin:0;} body.dark .page-head h2{color:var(--gold);}
+  .page-head .sub{font-size:12px;color:var(--muted);} .page-head .spacer{flex:1;}
+  .btn{border:0;border-radius:8px;padding:9px 15px;font-size:13px;font-weight:bold;background:var(--maroon);color:#fff;display:inline-flex;align-items:center;gap:6px;}
+  .btn.gold{background:var(--gold);color:#3a2a00;} .btn.ghost{background:var(--card);color:var(--maroon);border:1px solid var(--line);} body.dark .btn.ghost{color:var(--gold);}
+  .btn.sm{padding:6px 11px;font-size:12px;} .btn:hover{filter:brightness(.95);}
+  .adminonly.hidden{display:none!important;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:13px;margin-bottom:18px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold);}
+  .kpi .label{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:bold;}
+  .kpi .num{font-size:27px;font-weight:bold;color:var(--maroon);margin-top:3px;line-height:1;} body.dark .kpi .num{color:var(--gold);}
+  .kpi .meta{font-size:11px;color:var(--muted);margin-top:5px;}
+  .kpi.danger::before{background:var(--red);}.kpi.danger .num{color:var(--red);} .kpi.ok::before{background:var(--green);}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:15px;} @media(max-width:780px){.twocol{grid-template-columns:1fr;}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);margin-bottom:15px;}
+  .panel h3{font-size:13px;margin:0 0 12px;color:var(--ink);text-transform:uppercase;letter-spacing:.4px;}
+  .panel canvas{max-height:230px;}
+  .gauge-wrap{display:flex;align-items:center;gap:18px;} .gauge{position:relative;width:120px;height:120px;flex:none;} .gauge svg{transform:rotate(-90deg);}
+  .gauge .gnum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:bold;color:var(--maroon);} body.dark .gauge .gnum{color:var(--gold);}
+  .progress-list{display:flex;flex-direction:column;gap:10px;} .prog-row .top{display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px;}
+  .prog-bar{height:9px;background:var(--line);border-radius:6px;overflow:hidden;} .prog-bar>div{height:100%;background:linear-gradient(90deg,var(--gold),var(--maroon));}
+  .toolbar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:13px;align-items:center;}
+  .toolbar input,.toolbar select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);}
+  .toolbar .grow{flex:1;min-width:150px;}
+  .table-wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:auto;box-shadow:var(--shadow);}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{background:var(--maroon);color:#fff;text-align:left;padding:10px 11px;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;}
+  tbody td{padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top;} tbody tr:last-child td{border-bottom:0;}
+  tbody tr.clickable{cursor:pointer;} tbody tr:hover{background:rgba(201,162,75,.08);}
+  .empty{text-align:center;color:var(--muted);padding:30px;font-size:13px;}
+  .badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:10.5px;font-weight:bold;white-space:nowrap;}
+  .b-open{background:#fbe3e1;color:var(--red);} .b-closed{background:#e0f0e6;color:var(--green);} .b-prog{background:#fdeccf;color:var(--amber);}
+  .b-near{background:#dfeaf5;color:var(--blue);} .b-noact{background:#ece8e0;color:var(--muted);} .b-std{background:#efe7d3;color:#7a5a10;}
+  .b-retain{background:#e0f0e6;color:var(--green);} .b-reeval{background:#fdeccf;color:var(--amber);} .b-delist{background:#fbe3e1;color:var(--red);} .b-pending{background:#ece8e0;color:var(--muted);}
+  .b-esc1{background:#fdeccf;color:var(--amber);} .b-esc2{background:#fbe3e1;color:var(--red);} .b-esc3{background:var(--red);color:#fff;} .b-pos{background:#e6f0e9;color:var(--green);} .b-warn{background:#fbe3e1;color:var(--red);}
+  .tick{color:var(--green);font-weight:bold;} .cross{color:#c9bfb4;}
+  .row-actions{display:flex;gap:5px;} .icon-btn{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:4px 7px;font-size:11px;color:var(--maroon);font-weight:bold;} body.dark .icon-btn{color:var(--gold);} .icon-btn.del{color:var(--red);}
+  .heat{border-collapse:collapse;width:100%;font-size:11px;} .heat th,.heat td{border:1px solid var(--line);padding:6px 8px;text-align:center;} .heat th{background:var(--maroon-dark);color:#fff;} .heat td.lbl{text-align:left;font-weight:bold;background:rgba(201,162,75,.08);}
+  .modal-bg{position:fixed;inset:0;background:rgba(34,26,24,.55);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:26px 14px;overflow-y:auto;} .modal-bg.open{display:flex;}
+  .modal{background:var(--card);width:min(680px,100%);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.4);border-top:5px solid var(--gold);}
+  .modal-head{padding:15px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;} .modal-head h3{margin:0;color:var(--maroon);font-size:16px;} body.dark .modal-head h3{color:var(--gold);} .modal-head .x{margin-left:auto;border:0;background:none;font-size:22px;color:var(--muted);}
+  .modal-body{padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:13px;} .modal-body .full{grid-column:1/-1;}
+  .field label{display:block;font-size:10.5px;font-weight:bold;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;}
+  .field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);} .field textarea{resize:vertical;min-height:58px;} .field .hint{font-size:10px;color:var(--muted);margin-top:3px;}
+  .modal-foot{padding:13px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;}
+  .view-list{padding:6px 20px 4px;} .view-list .vrow{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;} .view-list .vrow:last-child{border-bottom:0;} .view-list .vk{flex:none;width:150px;color:var(--muted);font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:.3px;} .view-list .vv{flex:1;}
+  .qstatus{display:flex;gap:8px;align-items:center;background:var(--paper);padding:10px 20px;border-top:1px solid var(--line);} .qstatus select{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);}
+  #qrBox{display:flex;justify-content:center;padding:14px;}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:var(--paper);padding:11px 20px;border-radius:30px;font-size:13px;z-index:600;transition:transform .3s;box-shadow:0 10px 30px rgba(0,0,0,.3);} .toast.show{transform:translateX(-50%) translateY(0);}
+  .setup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;}
+  @media print{header.appbar,nav.tabs,#ribbon,.toolbar,.btn,.row-actions,.icon-btn,.demo-banner,.page-head .spacer,.modal-bg,.toast{display:none!important;} .view{display:none!important;} #printArea{display:block!important;} body{background:#fff;color:#000;}}
+  #printArea{display:none;}
+  @media(max-width:560px){.modal-body{grid-template-columns:1fr;}.twocol{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- GATE -->
+<div id="gate"><div class="gate-card">
+  <div class="crest">BB</div>
+  <h1>IMS Internal Audit Monitoring</h1>
+  <p>Big Ben Construction &amp; Builders · ISO 9001 · 14001 · 45001</p>
+  <input id="opName" type="text" placeholder="Your name (for audit trail)" autocomplete="off" />
+  <input id="pinInput" class="pin" type="password" inputmode="numeric" maxlength="10" placeholder="••••" autocomplete="off" />
+  <button onclick="checkPin()">Sign in</button>
+  <div class="gate-err" id="pinErr"></div>
+  <div class="gate-hint">Admin PIN edits records · Viewer PIN is read-only</div>
+</div></div>
+
+<header class="appbar">
+  <div class="crest">BB</div>
+  <div class="titles"><strong>IMS Internal Audit Monitoring</strong><span id="whoami">Big Ben Group</span></div>
+  <div class="spacer"></div>
+  <select id="cycleFilter" onchange="renderAll()" title="Audit cycle"></select>
+  <select id="entityFilter" onchange="renderAll()" title="Company"></select>
+  <button class="iconbtn" onclick="toggleDark()" title="Dark mode">◐</button>
+  <div class="sync"><span class="dot" id="syncDot"></span><span id="syncTxt">…</span></div>
+</header>
+
+<nav class="tabs" id="tabNav">
+  <button class="active" data-view="dashboard">Dashboard</button>
+  <button data-view="program">Audit Program</button>
+  <button data-view="ofi">OFI Tracker</button>
+  <button data-view="care">CARE Tracker</button>
+  <button data-view="positive">Positive Obs</button>
+  <button data-view="auditors">Auditors</button>
+  <button data-view="reports">Reports &amp; Tools</button>
+  <button data-view="setup">Setup</button>
+</nav>
+<div id="ribbon"></div>
+
+<main>
+  <div class="demo-banner" id="demoBanner" style="display:none;"><strong>Demo mode.</strong> Running on your workbook's data, stored in-browser. Paste your Firebase config near the bottom of this file for realtime cloud sync.</div>
+
+  <!-- DASHBOARD -->
+  <section class="view active" id="view-dashboard">
+    <div class="page-head"><h2>Audit Dashboard</h2><span class="sub" id="dashAsOf"></span><div class="spacer"></div>
+      <button class="btn ghost sm" onclick="printDashboard()">Print summary</button></div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+    <div class="twocol">
+      <div class="panel"><h3>OFI status — open vs closed</h3><canvas id="chOfi"></canvas></div>
+      <div class="panel"><h3>CARE status</h3><canvas id="chCare"></canvas></div>
+    </div>
+    <div class="twocol">
+      <div class="panel"><h3>Auditor performance results</h3><canvas id="chPerf"></canvas></div>
+      <div class="panel"><h3>Section coverage</h3><div class="gauge-wrap"><div class="gauge" id="covGauge"></div><div style="font-size:12px;color:var(--muted)" id="covText"></div></div></div>
+    </div>
+    <div class="panel"><h3>OFI · CARE · Positive by section <span style="font-weight:normal;text-transform:none;color:var(--muted);font-size:11px">— click a section to drill down</span></h3>
+      <div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Section / Process</th><th>OFI Total</th><th>OFI Open</th><th>OFI Closed</th><th>CARE</th><th>Positive</th><th>Grand Total</th></tr></thead><tbody id="bySectionBody"></tbody></table></div>
+    </div>
+    <div class="twocol">
+      <div class="panel"><h3>Load by ISO standard</h3><div id="heatmap"></div></div>
+      <div class="panel"><h3>Auditor submittals</h3><div id="submittals"></div></div>
+    </div>
+  </section>
+
+  <!-- PROGRAM -->
+  <section class="view" id="view-program">
+    <div class="page-head"><h2>Audit Program</h2><span class="sub">Auditor assignments &amp; schedule</span><div class="spacer"></div><button class="btn adminonly" onclick="openModal('program')">+ New assignment</button></div>
+    <div class="toolbar"><input class="grow" id="progSearch" placeholder="Search auditor, section, procedure…" oninput="renderProgram()" />
+      <select id="progStatusFilter" onchange="renderProgram()"><option value="">All status</option><option>Planned</option><option>In Progress</option><option>Completed</option></select></div>
+    <div class="table-wrap"><table><thead><tr><th>Ref</th><th>Auditor</th><th>Section / Process</th><th>Procedure</th><th>Standard</th><th>Planned</th><th>Status</th><th>Progress</th><th>Recurs</th><th></th></tr></thead><tbody id="progBody"></tbody></table></div>
+  </section>
+
+  <!-- OFI -->
+  <section class="view" id="view-ofi">
+    <div class="page-head"><h2>OFI Tracker</h2><span class="sub">Opportunities for Improvement · auto date-closed on CLOSED</span><div class="spacer"></div><button class="btn adminonly" onclick="openModal('ofi')">+ New OFI</button></div>
+    <div class="toolbar"><input class="grow" id="ofiSearch" placeholder="Search description, process, section…" oninput="renderOfi()" />
+      <select id="ofiStatusFilter" onchange="renderOfi()"><option value="">All status</option><option>OPEN</option><option>CLOSED</option></select>
+      <select id="ofiSectionFilter" onchange="renderOfi()"><option value="">All sections</option></select></div>
+    <div class="table-wrap"><table><thead><tr><th>OFI #</th><th>Section</th><th>Process</th><th>Description</th><th>Classification</th><th>Standard</th><th>Status</th><th>Date Closed</th><th>Escalation</th><th></th></tr></thead><tbody id="ofiBody"></tbody></table></div>
+  </section>
+
+  <!-- CARE -->
+  <section class="view" id="view-care">
+    <div class="page-head"><h2>CARE Tracker</h2><span class="sub">Corrective Action Request · F-CI-2.2</span><div class="spacer"></div><button class="btn adminonly" onclick="openModal('care')">+ New CARE</button></div>
+    <div class="toolbar"><input class="grow" id="careSearch" placeholder="Search finding, section, follow-up by…" oninput="renderCare()" />
+      <select id="careStatusFilter" onchange="renderCare()"><option value="">All status</option><option>No Action Yet Started</option><option>In-Progress</option><option>Near Completion</option><option>Completed/Closed</option></select></div>
+    <div class="table-wrap"><table><thead><tr><th>CARE No.</th><th>Section</th><th>Date</th><th>Finding</th><th>Classification</th><th>Follow-up</th><th>By</th><th>Recurred?</th><th>Status</th><th>Close-out</th><th>Esc.</th><th></th></tr></thead><tbody id="careBody"></tbody></table></div>
+  </section>
+
+  <!-- POSITIVE -->
+  <section class="view" id="view-positive">
+    <div class="page-head"><h2>Positive Observations</h2><span class="sub">Good practices noted per process</span><div class="spacer"></div><button class="btn adminonly" onclick="openModal('positive')">+ New observation</button></div>
+    <div class="toolbar"><input class="grow" id="posSearch" placeholder="Search observation, section, process…" oninput="renderPositive()" /></div>
+    <div class="table-wrap"><table><thead><tr><th>#</th><th>Section</th><th>Process / Procedure</th><th>Positive Observation</th><th>Remarks</th><th></th></tr></thead><tbody id="posBody"></tbody></table></div>
+  </section>
+
+  <!-- AUDITORS -->
+  <section class="view" id="view-auditors">
+    <div class="page-head"><h2>Auditors</h2><span class="sub">Assigned procedures, submittals &amp; performance</span><div class="spacer"></div>
+      <button class="btn ghost sm" onclick="auditorTab('list')">List &amp; Submittals</button>
+      <button class="btn ghost sm" onclick="auditorTab('perf')">Performance Evaluation</button></div>
+    <div id="auditorList">
+      <div class="page-head"><span class="sub">⚠ = independence flag (auditing own section)</span><div class="spacer"></div><button class="btn adminonly" onclick="openModal('auditor')">+ New auditor row</button></div>
+      <div class="table-wrap"><table><thead><tr><th>#</th><th>Auditor</th><th>Procedure / Process</th><th>Checklist</th><th>Date Done</th><th>OFI Rep.</th><th>CARE</th><th>Eval</th><th>Remarks</th><th></th></tr></thead><tbody id="auditorBody"></tbody></table></div>
+    </div>
+    <div id="auditorPerf" style="display:none">
+      <div class="page-head"><span class="sub" id="perfRule"></span><div class="spacer"></div><button class="btn adminonly" onclick="openModal('perf')">+ New evaluation</button></div>
+      <div class="table-wrap"><table><thead><tr><th>#</th><th>Auditor</th><th>Section</th><th>Cat /5</th><th>Overall /5</th><th>Combined /5</th><th>Result</th><th>Remarks</th><th></th></tr></thead><tbody id="perfBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section class="view" id="view-reports">
+    <div class="page-head"><h2>Reports &amp; Tools</h2><span class="sub">Build, filter, print</span></div>
+    <div class="panel">
+      <h3>Report builder</h3>
+      <div class="toolbar">
+        <select id="rbModule"><option value="ofi">OFI</option><option value="care">CARE</option><option value="positive">Positive Obs</option><option value="program">Audit Program</option><option value="perf">Performance</option></select>
+        <select id="rbSection"><option value="">All sections</option></select>
+        <select id="rbCompany"><option value="">All companies</option></select>
+        <select id="rbStatus"><option value="">All status</option></select>
+        <select id="rbClass"><option value="">All classifications</option></select>
+        <input type="date" id="rbFrom" title="Date from" />
+        <input type="date" id="rbTo" title="Date to" />
+        <button class="btn" onclick="generateReport()">Generate</button>
+        <button class="btn ghost" onclick="exportReport()">Export CSV</button>
+        <button class="btn ghost" onclick="printReport()">Print</button>
+      </div>
+      <div class="table-wrap" id="reportResults"><div class="empty">Choose filters and click Generate.</div></div>
+    </div>
+    <div class="panel">
+      <h3>Section traceability &amp; coverage</h3>
+      <div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Section</th><th>Standards</th><th>OFI</th><th>CARE</th><th>Positive</th><th>Audited?</th><th>Legal ref</th></tr></thead><tbody id="traceBody"></tbody></table></div>
+    </div>
+    <div class="panel">
+      <h3>Audit closure certificate</h3>
+      <p style="font-size:13px;color:var(--muted);margin-top:0">Generate a closure certificate for a section (records stay editable — not permanently locked).</p>
+      <div class="toolbar"><select id="certSection"></select><button class="btn" onclick="closureCert()">Generate &amp; print certificate</button></div>
+    </div>
+    <div class="panel">
+      <h3>Management review pack (ISO 9.3)</h3>
+      <button class="btn" onclick="reviewPack()">Generate &amp; print review pack</button>
+    </div>
+    <div class="panel">
+      <h3>Audit trail / activity log</h3>
+      <div class="table-wrap" style="box-shadow:none;border:0;max-height:300px"><table><thead><tr><th>When</th><th>User</th><th>Action</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- SETUP -->
+  <section class="view" id="view-setup">
+    <div class="page-head"><h2>Setup — Master Data</h2><span class="sub">Change everything here · used by all dropdowns</span></div>
+    <div class="setup-grid">
+      <div class="panel"><h3>Sections / Departments <button class="btn sm adminonly" style="float:right" onclick="openModal('department')">+ Add</button></h3><div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Code</th><th>Section</th><th>Owner</th><th>QR</th><th></th></tr></thead><tbody id="deptBody"></tbody></table></div></div>
+      <div class="panel"><h3>Companies <button class="btn sm adminonly" style="float:right" onclick="openModal('company')">+ Add</button></h3><div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Code</th><th>Company name</th><th></th></tr></thead><tbody id="companyBody"></tbody></table></div></div>
+      <div class="panel"><h3>ISO Standards <button class="btn sm adminonly" style="float:right" onclick="openModal('standard')">+ Add</button></h3><div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Standard</th><th></th></tr></thead><tbody id="stdBody"></tbody></table></div></div>
+      <div class="panel"><h3>Classifications <button class="btn sm adminonly" style="float:right" onclick="openModal('classification')">+ Add</button></h3><div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Classification</th><th></th></tr></thead><tbody id="classBody"></tbody></table></div></div>
+      <div class="panel"><h3>Performance categories (weighted) <button class="btn sm adminonly" style="float:right" onclick="openModal('perfcat')">+ Add</button></h3><div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Category</th><th>Weight</th><th></th></tr></thead><tbody id="perfcatBody"></tbody></table></div></div>
+      <div class="panel"><h3>Audit cycles <button class="btn sm adminonly" style="float:right" onclick="openModal('cycle')">+ Add</button></h3><div class="table-wrap" style="box-shadow:none;border:0"><table><thead><tr><th>Cycle</th><th></th></tr></thead><tbody id="cycleBody"></tbody></table></div></div>
+      <div class="panel"><h3>Settings / thresholds</h3>
+        <div class="field"><label>RETAIN if rating ≥</label><input type="number" step="0.1" id="setRetain" /></div>
+        <div class="field" style="margin-top:8px"><label>RE-EVALUATE if rating ≥ (else DELIST)</label><input type="number" step="0.1" id="setReeval" /></div>
+        <div class="field" style="margin-top:8px"><label>Audit close deadline</label><input type="date" id="setDeadline" /></div>
+        <button class="btn adminonly" style="margin-top:12px" onclick="saveSettings()">Save settings</button>
+        <hr style="border:0;border-top:1px solid var(--line);margin:16px 0" />
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">First-time cloud setup: writes 19 sections, companies, standards, classifications, categories, cycle &amp; reference records. Safe — skips anything that already has data.</div>
+        <button class="btn gold adminonly" onclick="seedToCloud()">Initialize cloud database</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="printArea"></div>
+
+<!-- EDIT MODAL -->
+<div class="modal-bg" id="modalBg"><div class="modal">
+  <div class="modal-head"><h3 id="modalTitle">Record</h3><button class="x" onclick="closeModal()">×</button></div>
+  <div class="modal-body" id="modalBody"></div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="modalSave" onclick="saveModal()">Save</button></div>
+</div></div>
+
+<!-- VIEW MODAL -->
+<div class="modal-bg" id="viewBg"><div class="modal">
+  <div class="modal-head"><h3 id="viewTitle">Details</h3><button class="x" onclick="document.getElementById('viewBg').classList.remove('open')">×</button></div>
+  <div class="view-list" id="viewBody"></div>
+  <div class="qstatus" id="viewStatus"></div>
+  <div class="modal-foot"><button class="btn ghost" onclick="document.getElementById('viewBg').classList.remove('open')">Close</button><button class="btn adminonly" id="viewEditBtn">Edit</button></div>
+</div></div>
+
+<!-- DRILLDOWN MODAL -->
+<div class="modal-bg" id="drillBg"><div class="modal" style="width:min(820px,100%)">
+  <div class="modal-head"><h3 id="drillTitle">Section</h3><button class="x" onclick="document.getElementById('drillBg').classList.remove('open')">×</button></div>
+  <div id="drillBody" style="padding:16px 20px;"></div>
+</div></div>
+
+<!-- QR MODAL -->
+<div class="modal-bg" id="qrBg"><div class="modal" style="width:min(360px,100%)">
+  <div class="modal-head"><h3 id="qrTitle">Section QR</h3><button class="x" onclick="document.getElementById('qrBg').classList.remove('open')">×</button></div>
+  <div id="qrBox"></div><div style="padding:0 20px 18px;font-size:12px;color:var(--muted);text-align:center" id="qrCap"></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 1. CONFIG ===== */
+const FIREBASE_CONFIG={apiKey:"AIzaSyBQkZla1anAD4si__tM0aaKzSjw46pkeaE",authDomain:"auditbigben.firebaseapp.com",projectId:"auditbigben",storageBucket:"auditbigben.firebasestorage.app",messagingSenderId:"140513751980",appId:"1:140513751980:web:f0cbb1f33a31dd96028009",measurementId:"G-LG41422FS6"};
+const ADMIN_PIN="EMR6767", VIEWER_PIN="BBVIEW";
+const ESC={l1:1,l2:7,l3:14,names:["Auditor / owner","IMS Head (J. Marmeto)","IMS Champion (FNEF)"]};
+
+/* ===== 2. DATA LAYER ===== */
+const COLS=["companies","standards","classifications","perfcats","cycles","config","departments","program","ofi","care","positive","auditors","perf","activity"];
+let db=null,USE_CLOUD=false,IS_ADMIN=false,OPERATOR="";
+const store={}; COLS.forEach(c=>store[c]=[]);
+function isConfigured(){return FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.apiKey!=="YOUR_API_KEY";}
+function initData(){
+  if(isConfigured()){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();USE_CLOUD=true;
+    setSync(false,"Signing in…");
+    firebase.auth().signInAnonymously().then(attachListeners).catch(err=>{
+      console.error(err);setSync(false,"Auth off");
+      alert("Cloud sign-in failed: "+err.code+"\n\nIn Firebase Console, enable Authentication → Sign-in method → Anonymous. (Or use open rules if you prefer no auth.)");
+    });return;}catch(e){console.error(e);}}
+  USE_CLOUD=false;document.getElementById("demoBanner").style.display="block";seedDemo();setSync(true,"Demo (local)");populateFilters();renderAll();
+}
+function attachListeners(){
+  COLS.forEach(c=>db.collection(c).onSnapshot(s=>{store[c]=s.docs.map(d=>({id:d.id,...d.data()}));setSync(true);populateFilters();renderAll();},e=>{console.error(e);setSync(false,"Rules blocked?");}));
+}
+async function addDoc(col,data){data._by=OPERATOR;data._at=new Date().toISOString();
+  if(USE_CLOUD)await db.collection(col).add(data);else{store[col].push({id:"L"+Date.now()+Math.random().toString(36).slice(2,5),...data});populateFilters();renderAll();}
+  logActivity("Added "+col+(data.no?(" "+data.no):""));}
+async function updateDoc(col,id,data){data._by=OPERATOR;data._at=new Date().toISOString();
+  if(USE_CLOUD)await db.collection(col).doc(id).update(data);else{const i=store[col].findIndex(x=>x.id===id);if(i>-1)store[col][i]={...store[col][i],...data};populateFilters();renderAll();}
+  logActivity("Updated "+col);}
+async function deleteDoc(col,id){if(USE_CLOUD)await db.collection(col).doc(id).delete();else{store[col]=store[col].filter(x=>x.id!==id);populateFilters();renderAll();}logActivity("Deleted from "+col);}
+async function logActivity(action){const r={ts:new Date().toISOString(),user:OPERATOR||"system",action};if(USE_CLOUD){try{await db.collection("activity").add(r);}catch(e){}}else{store.activity.unshift({id:"A"+Date.now(),...r});renderLog();}}
+function setSync(live,txt){const d=document.getElementById("syncDot"),t=document.getElementById("syncTxt");d.classList.toggle("live",!!live);t.textContent=txt||(live?"Live":"Offline");}
+
+/* ===== 3. GATE ===== */
+function checkPin(){const v=document.getElementById("pinInput").value.trim(),nm=document.getElementById("opName").value.trim();
+  if(v===ADMIN_PIN||v===VIEWER_PIN){IS_ADMIN=(v===ADMIN_PIN);OPERATOR=nm||(IS_ADMIN?"Admin":"Viewer");
+    document.getElementById("gate").style.display="none";document.getElementById("whoami").textContent="Big Ben Group · "+(IS_ADMIN?"Admin":"View-only")+" · "+OPERATOR;
+    document.querySelectorAll(".adminonly").forEach(el=>el.classList.toggle("hidden",!IS_ADMIN));initData();}
+  else{document.getElementById("pinErr").textContent="Incorrect PIN.";document.getElementById("pinInput").value="";}}
+document.getElementById("pinInput").addEventListener("keydown",e=>{if(e.key==="Enter")checkPin();});
+
+/* ===== 4. NAV / FILTERS ===== */
+document.getElementById("tabNav").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("nav.tabs button").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");document.getElementById("view-"+b.dataset.view).classList.add("active");});
+function toggleDark(){document.body.classList.toggle("dark");renderDashboard();}
+function entity(){return document.getElementById("entityFilter").value;}
+function cycle(){return document.getElementById("cycleFilter").value;}
+function inEntity(r){const e=entity();return e==="All"||!r.entity||r.entity===e||r.entity==="Shared";}
+function inCycle(r){const c=cycle();return c==="All"||!r.cycle||r.cycle===c;}
+function pass(r){return inEntity(r)&&inCycle(r);}
+function activeCycle(){const c=cycle();return c!=="All"?c:(store.cycles[0]&&store.cycles[0].name)||"1st Internal Audit 2026";}
+function populateFilters(){
+  const ef=document.getElementById("entityFilter"),cur=ef.value;
+  ef.innerHTML='<option value="All">All companies</option>'+store.companies.map(c=>`<option value="${c.code}">${c.name}</option>`).join("");
+  if(cur&&[...ef.options].some(o=>o.value===cur))ef.value=cur;
+  const cf=document.getElementById("cycleFilter"),curc=cf.value;
+  cf.innerHTML=store.cycles.map(c=>`<option value="${c.name}">${c.name}</option>`).join("")+'<option value="All">All cycles</option>';
+  if(curc&&[...cf.options].some(o=>o.value===curc))cf.value=curc;
+}
+
+/* ===== 5. HELPERS ===== */
+const today=()=>new Date();
+function fmt(d){if(!d)return"—";const t=new Date(d);return isNaN(t)?d:t.toLocaleDateString("en-PH",{year:"numeric",month:"short",day:"numeric"});}
+function addDays(d,n){const t=new Date(d);t.setDate(t.getDate()+n);return t.toISOString().slice(0,10);}
+function daysSince(d){return Math.round((today()-new Date(d))/86400000);}
+function nextNo(col,prefix){const yr=new Date().getFullYear();const n=store[col].filter(x=>(x.no||"").includes("-"+yr+"-")).length+1;return prefix+"-"+yr+"-"+String(n).padStart(3,"0");}
+function showToast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
+function h(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+function hd(v){return v?h(v):"—";}
+function ofiClosed(o){return(o.status||"").toUpperCase()==="CLOSED";}
+function careClosed(c){return(c.status||"").startsWith("Completed");}
+function escLevel(d){if(d>=ESC.l3)return 3;if(d>=ESC.l2)return 2;if(d>=ESC.l1)return 1;return 0;}
+function escBadge(d){const l=escLevel(d);return l?`<span class="badge b-esc${l}">${ESC.names[l-1]} · ${d}d</span>`:'<span style="color:var(--muted);font-size:11px">—</span>';}
+function settings(){const s=store.config[0]||{};return{retain:s.retain??3.5,reeval:s.reeval??2.5,deadline:s.deadline||"2026-06-10"};}
+/* performance ratings */
+function catRating(p){if(!p.cats)return null;let tw=0,ts=0;store.perfcats.forEach(c=>{const v=p.cats[c.name];if(v!=null&&v!==""){const w=Number(c.weight)||1;tw+=w;ts+=Number(v)*w;}});return tw?ts/tw:null;}
+function overallRating(p){const q=Number(p.totalQ),s=Number(p.score);if(!q||p.score===""||p.score==null||isNaN(s))return null;return s/q;}
+function combinedRating(p){let a=catRating(p),b=overallRating(p);if(a!=null&&isNaN(a))a=null;if(b!=null&&isNaN(b))b=null;if(a!=null&&b!=null)return (a+b)/2;return a!=null?a:b;}
+function resultOf(p){const r=combinedRating(p),s=settings();if(r==null)return"Pending";if(r>=s.retain)return"RETAIN";if(r>=s.reeval)return"RE-EVALUATE";return"DELIST";}
+function deptByName(n){return store.departments.find(d=>d.name===n);}
+function independence(auditor,section){const d=deptByName(section);if(!d||!d.owner||!auditor)return false;const a=auditor.toLowerCase(),o=d.owner.toLowerCase();return a.includes(o)||o.includes(a);}
+
+/* ===== 6. DASHBOARD ===== */
+let charts={};
+function renderDashboard(){
+  document.getElementById("dashAsOf").textContent="As of "+fmt(today());
+  const O=store.ofi.filter(pass),C=store.care.filter(pass),P=store.positive.filter(pass),PF=store.perf.filter(pass),A=store.auditors.filter(pass);
+  const ofiOpen=O.filter(o=>!ofiClosed(o)).length,ofiCl=O.filter(ofiClosed).length,closure=O.length?Math.round(ofiCl/O.length*100):0;
+  const careNos=[...new Set(C.map(c=>c.no))];const careOpen=careNos.filter(n=>!C.filter(c=>c.no===n).some(careClosed)).length;
+  const auditorCount=[...new Set(A.map(a=>a.auditor))].length;
+  const res={RETAIN:0,"RE-EVALUATE":0,DELIST:0,Pending:0};PF.forEach(p=>res[resultOf(p)]++);
+  const dl=settings().deadline,dleft=daysSince(dl)*-1;const openVsDeadline=ofiOpen+careOpen;
+  document.getElementById("kpiGrid").innerHTML=
+     kpi("OFI raised",O.length,ofiOpen+" open · "+ofiCl+" closed")
+    +kpi("OFI closure",closure+"%","resolution rate",closure>=70?"ok":"")
+    +kpi("CARE raised",careNos.length,careOpen+" still open",careOpen?"":"ok")
+    +kpi("Positive obs",P.length,"good practices","ok")
+    +kpi("Auditors",auditorCount,res.RETAIN+" retain · "+res.DELIST+" delist")
+    +kpi("Open vs deadline",openVsDeadline,(dleft>=0?dleft+" days left":Math.abs(dleft)+" days overdue")+" ("+fmt(dl)+")",(dleft<0&&openVsDeadline)?"danger":(openVsDeadline?"":"ok"))
+    +kpi("Escalations",escalationCount(),escalationCount()?"need follow-up":"all clear",escalationCount()?"danger":"ok");
+  drawDonut("chOfi",{OPEN:ofiOpen,CLOSED:ofiCl},["#b3261e","#2e7d4f"]);
+  const careStat={"No Action Yet Started":0,"In-Progress":0,"Near Completion":0,"Completed/Closed":0};
+  careNos.forEach(n=>{const last=C.filter(c=>c.no===n).slice(-1)[0]||{};careStat[last.status]=(careStat[last.status]||0)+1;});
+  drawDonut("chCare",careStat,["#9a9a9a","#c98a16","#2c5d86","#2e7d4f"]);
+  drawBar("chPerf",res,["#2e7d4f","#c98a16","#b3261e","#9a9a9a"]);
+  const secs=store.departments.filter(inEntity);
+  const audited=secs.filter(s=>store.program.filter(pass).some(p=>p.section===s.name&&p.status==="Completed")||O.some(o=>o.section===s.name)||C.some(c=>c.section===s.name)||P.some(x=>x.section===s.name)).length;
+  const covPct=secs.length?Math.round(audited/secs.length*100):0;drawGauge("covGauge",covPct);
+  document.getElementById("covText").innerHTML=`<strong>${audited}/${secs.length}</strong> sections touched.<br><span style="color:var(--muted)">MTTR: ${mttr()} days · First-time-right: ${ftr()}%</span>`;
+  const tb=document.getElementById("bySectionBody");
+  tb.innerHTML=secs.map(s=>{const oa=O.filter(o=>o.section===s.name);const ot=oa.length,oo=oa.filter(o=>!ofiClosed(o)).length,oc=oa.filter(ofiClosed).length;
+    const cc=[...new Set(C.filter(c=>c.section===s.name).map(c=>c.no))].length;const pp=P.filter(x=>x.section===s.name).length;
+    return `<tr class="clickable" onclick="drillSection('${encodeURIComponent(s.name)}')"><td>${hd(s.name)}</td><td>${ot}</td><td>${oo}</td><td>${oc}</td><td>${cc}</td><td>${pp}</td><td><strong>${ot+cc+pp}</strong></td></tr>`;}).join("")||'<tr><td class="empty" colspan="7">No sections.</td></tr>';
+  renderHeatmap(O,C);renderSubmittals(A);
+}
+function kpi(l,n,m,cls=""){return`<div class="kpi ${cls}"><div class="label">${l}</div><div class="num">${n}</div><div class="meta">${m}</div></div>`;}
+function escalationCount(){let c=0;store.ofi.filter(pass).forEach(o=>{if(!ofiClosed(o)&&o.dateRaised&&escLevel(daysSince(o.dateRaised))>=2)c++;});store.care.filter(pass).forEach(x=>{if(!careClosed(x)&&x.dateOfCare&&escLevel(daysSince(x.dateOfCare))>=2)c++;});return c;}
+function mttr(){const cl=store.ofi.filter(pass).filter(o=>ofiClosed(o)&&o.dateRaised&&o.dateClosed);if(!cl.length)return"—";return Math.round(cl.reduce((s,o)=>s+Math.max(0,Math.round((new Date(o.dateClosed)-new Date(o.dateRaised))/86400000)),0)/cl.length);}
+function ftr(){const C=store.care.filter(pass);const nos=[...new Set(C.map(c=>c.no))];if(!nos.length)return 100;const rep=nos.filter(n=>C.some(c=>c.no===n&&(c.recurrence||"").toUpperCase()==="YES")).length;return Math.round((1-rep/nos.length)*100);}
+const PAL=["#7B1C1C","#C9A24B","#2c5d86","#2e7d4f","#b3261e","#6a4ea0","#c98a16"];
+function dColor(){return document.body.classList.contains("dark");}
+function drawDonut(id,data,colors){const ctx=document.getElementById(id);if(!ctx)return;if(charts[id])charts[id].destroy();charts[id]=new Chart(ctx,{type:"doughnut",data:{labels:Object.keys(data),datasets:[{data:Object.values(data),backgroundColor:colors||PAL,borderWidth:2,borderColor:dColor()?"#262019":"#fff"}]},options:{plugins:{legend:{position:"bottom",labels:{font:{size:11},boxWidth:11,color:dColor()?"#f0e9df":"#221a18"}}},cutout:"58%"}});}
+function drawBar(id,data,colors){const ctx=document.getElementById(id);if(!ctx)return;if(charts[id])charts[id].destroy();charts[id]=new Chart(ctx,{type:"bar",data:{labels:Object.keys(data),datasets:[{data:Object.values(data),backgroundColor:colors||"#7B1C1C",borderRadius:5}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:dColor()?"#f0e9df":"#221a18"}},y:{beginAtZero:true,ticks:{precision:0,color:dColor()?"#f0e9df":"#221a18"}}}}});}
+function drawGauge(id,pct){const el=document.getElementById(id);if(!el)return;const r=52,c=2*Math.PI*r,off=c*(1-pct/100);el.innerHTML=`<svg width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--line)" stroke-width="12"/><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--maroon)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg><div class="gnum">${pct}%</div>`;}
+function renderHeatmap(O,C){const secs=store.departments.filter(inEntity);const stds=store.standards.map(s=>s.name).filter(n=>/9001|14001|45001/.test(n)).slice(0,4);const base=["9001","14001","45001"];
+  const cell=(s,k)=>O.filter(o=>o.section===s&&(o.standard||"").includes(k)).length+C.filter(c=>c.section===s&&(c.standard||"").includes(k)).length;
+  let h='<table class="heat"><thead><tr><th>Section</th>'+base.map(b=>`<th>ISO ${b}</th>`).join("")+'</tr></thead><tbody>';
+  secs.forEach(s=>{h+=`<tr><td class="lbl">${s.name}</td>`+base.map(b=>{const v=cell(s.name,b);return`<td style="${v?`background:rgba(123,28,28,${Math.min(.15+v*.18,.75)});color:${v>2?'#fff':'inherit'}`:''}">${v||""}</td>`;}).join("")+"</tr>";});
+  document.getElementById("heatmap").innerHTML=h+"</tbody></table>";}
+function renderSubmittals(A){const rows=[["Audit checklists",A.filter(a=>a.checklist).length],["OFI reports",A.filter(a=>a.ofiReport).length],["CARE reports",A.filter(a=>a.care).length],["Evaluations",A.filter(a=>a.evaluation).length]];const tot=A.length||1;
+  document.getElementById("submittals").innerHTML='<div class="progress-list">'+rows.map(([l,v])=>{const p=Math.round(v/tot*100);return`<div class="prog-row"><div class="top"><span>${l} submitted</span><span>${v}/${tot}</span></div><div class="prog-bar"><div style="width:${p}%"></div></div></div>`;}).join("")+"</div>";}
+
+/* ===== 7. DRILLDOWN ===== */
+function drillSection(name){
+  try{name=decodeURIComponent(name);}catch(e){}
+  const O=store.ofi.filter(pass).filter(o=>o.section===name),C=store.care.filter(pass).filter(c=>c.section===name),P=store.positive.filter(pass).filter(p=>p.section===name);
+  document.getElementById("drillTitle").textContent=name;
+  const tbl=(t,rows,cols)=>`<h3 style="color:var(--maroon);font-size:13px;margin:14px 0 6px">${t} (${rows.length})</h3>`+(rows.length?`<div class="table-wrap" style="box-shadow:none"><table><thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${c[1](r)||"—"}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:'<div style="color:var(--muted);font-size:12px">None.</div>');
+  document.getElementById("drillBody").innerHTML=
+    tbl("OFI",O,[["#",r=>hd(r.no)],["Description",r=>hd(r.desc)],["Class",r=>hd(r.classification)],["Status",r=>hd(r.status||"OPEN")],["Closed",r=>fmt(r.dateClosed)]])
+   +tbl("CARE",C,[["No.",r=>hd(r.no)],["Finding",r=>hd(r.finding)],["Class",r=>hd(r.classification)],["Status",r=>hd(r.status)]])
+   +tbl("Positive Observations",P,[["Process",r=>hd(r.process)],["Observation",r=>hd(r.observation)]]);
+  document.getElementById("drillBg").classList.add("open");
+}
+
+/* ===== 8. TABLES ===== */
+function actCell(col,id){return`<td><div class="row-actions adminonly ${IS_ADMIN?"":"hidden"}" onclick="event.stopPropagation()"><button class="icon-btn" onclick="openModal('${col2type(col)}','${id}')">Edit</button><button class="icon-btn del" onclick="confirmDel('${col}','${id}')">Del</button></div></td>`;}
+function col2type(col){return{program:"program",ofi:"ofi",care:"care",positive:"positive",auditors:"auditor",perf:"perf",departments:"department",companies:"company",standards:"standard",classifications:"classification",perfcats:"perfcat",cycles:"cycle"}[col];}
+function progStatusBadge(s){const m={"Planned":"b-noact","In Progress":"b-prog","Completed":"b-closed"};return`<span class="badge ${m[s]||""}">${s||"—"}</span>`;}
+function renderProgram(){const q=(document.getElementById("progSearch").value||"").toLowerCase(),sf=document.getElementById("progStatusFilter").value;
+  let rows=store.program.filter(pass).filter(p=>(!sf||p.status===sf)&&(!q||[p.auditor,p.section,p.procedure,p.standard].join(" ").toLowerCase().includes(q))).sort((a,b)=>new Date(a.planned||0)-new Date(b.planned||0));
+  document.getElementById("progBody").innerHTML=rows.length?rows.map(p=>`<tr class="clickable" onclick="openView('program','${p.id}')"><td><strong>${hd(p.no)}</strong></td><td>${hd(p.auditor)}${independence(p.auditor,p.section)?' <span class="badge b-warn">⚠</span>':""}</td><td>${hd(p.section)}</td><td>${hd(p.procedure)}</td><td><span class="badge b-std">${hd(p.standard)}</span></td><td>${fmt(p.planned)}</td><td>${progStatusBadge(p.status)}</td><td>${p.progress||0}%</td><td>${p.frequency&&p.frequency!=="None"?h(p.frequency):"—"}</td>${actCell("program",p.id)}</tr>`).join(""):'<tr><td class="empty" colspan="10">No assignments.</td></tr>';}
+function ofiStatusBadge(s){return`<span class="badge ${(s||"").toUpperCase()==="CLOSED"?"b-closed":"b-open"}">${s||"OPEN"}</span>`;}
+function renderOfi(){const q=(document.getElementById("ofiSearch").value||"").toLowerCase(),sf=document.getElementById("ofiStatusFilter").value,secf=document.getElementById("ofiSectionFilter").value;
+  let rows=store.ofi.filter(pass).filter(o=>(!sf||(o.status||"OPEN").toUpperCase()===sf)&&(!secf||o.section===secf)&&(!q||[o.desc,o.process,o.section,o.action].join(" ").toLowerCase().includes(q))).sort((a,b)=>new Date(b.dateRaised||0)-new Date(a.dateRaised||0));
+  document.getElementById("ofiBody").innerHTML=rows.length?rows.map(o=>{const days=o.dateRaised?daysSince(o.dateRaised):0;return`<tr class="clickable" onclick="openView('ofi','${o.id}')"><td><strong>${hd(o.no)}</strong></td><td>${hd(o.section)}</td><td>${hd(o.process)}</td><td style="max-width:240px">${hd(o.desc)}</td><td>${hd(o.classification)}</td><td><span class="badge b-std">${hd(o.standard)}</span></td><td>${ofiStatusBadge(o.status)}</td><td>${ofiClosed(o)?fmt(o.dateClosed):"—"}</td><td>${ofiClosed(o)?'<span style="color:var(--green);font-size:11px">closed</span>':escBadge(days)}</td>${actCell("ofi",o.id)}</tr>`;}).join(""):'<tr><td class="empty" colspan="10">No OFIs found.</td></tr>';}
+function careStatusBadge(s){const m={"No Action Yet Started":"b-noact","In-Progress":"b-prog","Near Completion":"b-near","Completed/Closed":"b-closed"};return`<span class="badge ${m[s]||"b-noact"}">${s||"No Action Yet Started"}</span>`;}
+function renderCare(){const q=(document.getElementById("careSearch").value||"").toLowerCase(),sf=document.getElementById("careStatusFilter").value;
+  let rows=store.care.filter(pass).filter(c=>(!sf||c.status===sf)&&(!q||[c.no,c.finding,c.section,c.followedUpBy].join(" ").toLowerCase().includes(q))).sort((a,b)=>(a.no||"").localeCompare(b.no||""));
+  document.getElementById("careBody").innerHTML=rows.length?rows.map(c=>{const days=c.dateOfCare?daysSince(c.dateOfCare):0;return`<tr class="clickable" onclick="openView('care','${c.id}')"><td><strong>${hd(c.no)}</strong></td><td>${hd(c.section)}</td><td>${fmt(c.dateOfCare)}</td><td style="max-width:210px">${hd(c.finding)}</td><td>${hd(c.classification)}</td><td>${fmt(c.followUpDate)}</td><td>${hd(c.followedUpBy)}</td><td>${(c.recurrence||"").toUpperCase()==="YES"?'<span class="badge b-esc2">YES</span>':"NO"}</td><td>${careStatusBadge(c.status)}</td><td>${careClosed(c)?fmt(c.closeOutDate):"—"}</td><td>${careClosed(c)?'<span style="color:var(--green);font-size:11px">closed</span>':escBadge(days)}</td>${actCell("care",c.id)}</tr>`;}).join(""):'<tr><td class="empty" colspan="12">No CARE records.</td></tr>';}
+function renderPositive(){const q=(document.getElementById("posSearch").value||"").toLowerCase();let rows=store.positive.filter(pass).filter(p=>!q||[p.observation,p.section,p.process].join(" ").toLowerCase().includes(q));
+  document.getElementById("posBody").innerHTML=rows.length?rows.map((p,i)=>`<tr class="clickable" onclick="openView('positive','${p.id}')"><td>${i+1}</td><td>${hd(p.section)}</td><td>${hd(p.process)}</td><td style="max-width:320px"><span class="badge b-pos">+</span> ${hd(p.observation)}</td><td>${hd(p.remarks)}</td>${actCell("positive",p.id)}</tr>`).join(""):'<tr><td class="empty" colspan="6">No positive observations.</td></tr>';}
+function auditorTab(w){document.getElementById("auditorList").style.display=w==="list"?"block":"none";document.getElementById("auditorPerf").style.display=w==="perf"?"block":"none";}
+function renderAuditors(){const A=store.auditors.filter(pass);
+  document.getElementById("auditorBody").innerHTML=A.length?A.map((a,i)=>`<tr class="clickable" onclick="openView('auditor','${a.id}')"><td>${i+1}</td><td><strong>${hd(a.auditor)}</strong>${independence(a.auditor,a.section)?' <span class="badge b-warn">⚠</span>':""}</td><td>${hd(a.procedure)}</td><td>${a.checklist?'<span class="tick">✔</span>':'<span class="cross">—</span>'}</td><td>${a.dateCompleted?fmt(a.dateCompleted):"—"}</td><td>${a.ofiReport?'<span class="tick">✔</span>':'<span class="cross">—</span>'}</td><td>${a.care?'<span class="tick">✔</span>':'<span class="cross">—</span>'}</td><td>${a.evaluation?'<span class="tick">✔</span>':'<span class="cross">—</span>'}</td><td>${hd(a.remarks)}</td>${actCell("auditors",a.id)}</tr>`).join(""):'<tr><td class="empty" colspan="10">No auditor rows.</td></tr>';
+  const s=settings();document.getElementById("perfRule").textContent=`Rating = avg category /5 + overall (Score÷Q). RETAIN ≥${s.retain} · RE-EVALUATE ≥${s.reeval} · else DELIST`;
+  const PF=store.perf.filter(pass),rb=r=>({"RETAIN":"b-retain","RE-EVALUATE":"b-reeval","DELIST":"b-delist","Pending":"b-pending"}[r]);
+  document.getElementById("perfBody").innerHTML=PF.length?PF.map((p,i)=>{const c=catRating(p),o=overallRating(p),cm=combinedRating(p);return`<tr class="clickable" onclick="openView('perf','${p.id}')"><td>${i+1}</td><td><strong>${hd(p.auditor)}</strong></td><td>${hd(p.section)}</td><td>${c==null?"—":c.toFixed(2)}</td><td>${o==null?"—":o.toFixed(2)}</td><td><strong>${cm==null?"—":cm.toFixed(2)}</strong></td><td><span class="badge ${rb(resultOf(p))}">${resultOf(p)}</span></td><td>${hd(p.remarks)}</td>${actCell("perf",p.id)}</tr>`;}).join(""):'<tr><td class="empty" colspan="9">No evaluations.</td></tr>';}
+
+/* ===== 9. SETUP TABLES ===== */
+function renderSetup(){
+  document.getElementById("deptBody").innerHTML=store.departments.map(d=>`<tr><td>${hd(d.code)}</td><td>${hd(d.name)}</td><td>${hd(d.owner)}</td><td><button class="icon-btn" onclick="showQR('${encodeURIComponent(d.name||'')}')">QR</button></td>${actCell("departments",d.id)}</tr>`).join("")||'<tr><td class="empty" colspan="5">None.</td></tr>';
+  document.getElementById("companyBody").innerHTML=store.companies.map(c=>`<tr><td><strong>${hd(c.code)}</strong></td><td>${hd(c.name)}</td>${actCell("companies",c.id)}</tr>`).join("")||'<tr><td class="empty" colspan="3">None.</td></tr>';
+  document.getElementById("stdBody").innerHTML=store.standards.map(s=>`<tr><td>${hd(s.name)}</td>${actCell("standards",s.id)}</tr>`).join("")||'<tr><td class="empty" colspan="2">None.</td></tr>';
+  document.getElementById("classBody").innerHTML=store.classifications.map(s=>`<tr><td>${hd(s.name)}</td>${actCell("classifications",s.id)}</tr>`).join("")||'<tr><td class="empty" colspan="2">None.</td></tr>';
+  document.getElementById("perfcatBody").innerHTML=store.perfcats.map(s=>`<tr><td>${hd(s.name)}</td><td>${s.weight||1}</td>${actCell("perfcats",s.id)}</tr>`).join("")||'<tr><td class="empty" colspan="3">None.</td></tr>';
+  document.getElementById("cycleBody").innerHTML=store.cycles.map(s=>`<tr><td>${hd(s.name)}</td>${actCell("cycles",s.id)}</tr>`).join("")||'<tr><td class="empty" colspan="2">None.</td></tr>';
+  const s=settings();document.getElementById("setRetain").value=s.retain;document.getElementById("setReeval").value=s.reeval;document.getElementById("setDeadline").value=s.deadline;
+  // dropdown refreshes
+  const fill=(id,opts,keep)=>{const el=document.getElementById(id);if(!el)return;const cur=keep?el.value:"";el.innerHTML=opts;if(cur)el.value=cur;};
+  fill("ofiSectionFilter",'<option value="">All sections</option>'+store.departments.map(d=>`<option>${d.name}</option>`).join(""),true);
+  fill("rbSection",'<option value="">All sections</option>'+store.departments.map(d=>`<option>${d.name}</option>`).join(""),true);
+  fill("rbCompany",'<option value="">All companies</option>'+store.companies.map(c=>`<option value="${c.code}">${c.name}</option>`).join("")+'<option value="Shared">Shared</option>',true);
+  fill("rbClass",'<option value="">All classifications</option>'+store.classifications.map(c=>`<option>${c.name}</option>`).join(""),true);
+  fill("certSection",store.departments.map(d=>`<option>${d.name}</option>`).join(""),true);
+  const rbs=document.getElementById("rbStatus");if(rbs&&rbs.options.length<=1){const m=document.getElementById("rbModule").value;const o={ofi:["OPEN","CLOSED"],care:["No Action Yet Started","In-Progress","Near Completion","Completed/Closed"],program:["Planned","In Progress","Completed"]}[m]||[];rbs.innerHTML='<option value="">All status</option>'+o.map(x=>`<option>${x}</option>`).join("");}
+}
+function saveSettings(){if(!IS_ADMIN)return;const data={retain:Number(document.getElementById("setRetain").value)||3.5,reeval:Number(document.getElementById("setReeval").value)||2.5,deadline:document.getElementById("setDeadline").value};
+  const ex=store.config[0];if(ex)updateDoc("config",ex.id,data);else addDoc("config",data);showToast("Settings saved");}
+
+/* ===== 10. REPORTS ===== */
+function renderReports(){
+  const D=store.departments.filter(inEntity);
+  document.getElementById("traceBody").innerHTML=D.map(d=>{const oa=store.ofi.filter(pass).filter(o=>o.section===d.name),ca=store.care.filter(pass).filter(c=>c.section===d.name),pa=store.positive.filter(pass).filter(p=>p.section===d.name);
+    const stds=[...new Set([...oa,...ca].map(x=>x.standard).filter(Boolean))].join(", ")||"—";const audited=oa.length||ca.length||pa.length;const legal=[...oa,...ca].map(x=>x.legalRef).filter(Boolean).join("; ")||"—";
+    return`<tr><td>${hd(d.name)}</td><td style="font-size:11px">${hd(stds)}</td><td>${oa.length}</td><td>${[...new Set(ca.map(c=>c.no))].length}</td><td>${pa.length}</td><td>${audited?'<span class="badge b-closed">Yes</span>':'<span class="badge b-open">Not yet</span>'}</td><td style="font-size:11px">${hd(legal)}</td></tr>`;}).join("")||'<tr><td class="empty" colspan="7">No data.</td></tr>';
+  renderLog();
+}
+function renderLog(){const rows=(store.activity||[]).slice(0,80);document.getElementById("logBody").innerHTML=rows.length?rows.map(a=>`<tr><td style="white-space:nowrap">${new Date(a.ts).toLocaleString("en-PH")}</td><td>${hd(a.user)}</td><td>${hd(a.action)}</td></tr>`).join(""):'<tr><td class="empty" colspan="3">No activity.</td></tr>';}
+
+const RB_COLS={ofi:[["OFI #","no"],["Section","section"],["Process","process"],["Description","desc"],["Classification","classification"],["Standard","standard"],["Status","status"],["Date Closed","dateClosed"]],
+  care:[["CARE No.","no"],["Section","section"],["Date","dateOfCare"],["Finding","finding"],["Classification","classification"],["Status","status"],["Close-out","closeOutDate"]],
+  positive:[["Section","section"],["Process","process"],["Observation","observation"]],
+  program:[["Ref","no"],["Auditor","auditor"],["Section","section"],["Procedure","procedure"],["Standard","standard"],["Planned","planned"],["Status","status"]],
+  perf:[["Auditor","auditor"],["Section","section"],["Result",p=>resultOf(p)],["Combined",p=>{const r=combinedRating(p);return r==null?"—":r.toFixed(2);}]]};
+const RB_DATE={ofi:"dateRaised",care:"dateOfCare",positive:"date",program:"planned",perf:null};
+let lastReport={title:"",cols:[],rows:[]};
+function generateReport(){
+  const mod=document.getElementById("rbModule").value,sec=document.getElementById("rbSection").value,co=document.getElementById("rbCompany").value,st=document.getElementById("rbStatus").value,cl=document.getElementById("rbClass").value,from=document.getElementById("rbFrom").value,to=document.getElementById("rbTo").value;
+  let rows=store[mod].slice();
+  const cy=cycle();if(cy!=="All")rows=rows.filter(r=>!r.cycle||r.cycle===cy);
+  if(sec)rows=rows.filter(r=>r.section===sec);
+  if(co)rows=rows.filter(r=>r.entity===co||(co==="Shared"&&r.entity==="Shared"));
+  if(cl)rows=rows.filter(r=>r.classification===cl);
+  if(st)rows=rows.filter(r=>(r.status||"")===st);
+  const df=RB_DATE[mod];if(df&&(from||to))rows=rows.filter(r=>{const d=r[df];if(!d)return false;if(from&&d<from)return false;if(to&&d>to)return false;return true;});
+  const cols=RB_COLS[mod];lastReport={title:mod.toUpperCase()+" report",cols,rows};
+  document.getElementById("reportResults").innerHTML=rows.length?`<table><thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${h((typeof c[1]==="function"?c[1](r):(c[1]==="status"?(r.status||(mod==="ofi"?"OPEN":"")):(/date|planned|closed|out/i.test(c[1])?fmt(r[c[1]]):r[c[1]])))||"—")}</td>`).join("")}</tr>`).join("")}</tbody></table>`:'<div class="empty">No records match these filters.</div>';
+  // populate status options for chosen module
+}
+document.addEventListener("change",e=>{if(e.target&&e.target.id==="rbModule"){const m=e.target.value;const opts={ofi:["OPEN","CLOSED"],care:["No Action Yet Started","In-Progress","Near Completion","Completed/Closed"],program:["Planned","In Progress","Completed"],positive:[],perf:[]}[m]||[];document.getElementById("rbStatus").innerHTML='<option value="">All status</option>'+opts.map(o=>`<option>${o}</option>`).join("");}});
+function exportReport(){if(!lastReport.rows.length){showToast("Generate a report first");return;}const cols=lastReport.cols;const head=cols.map(c=>c[0]).join(",");const body=lastReport.rows.map(r=>cols.map(c=>`"${String((typeof c[1]==="function"?c[1](r):r[c[1]])??"").replace(/"/g,'""')}"`).join(",")).join("\n");const blob=new Blob([head+"\n"+body],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="IMS_report_"+new Date().toISOString().slice(0,10)+".csv";a.click();showToast("Exported CSV");}
+function printReport(){if(!lastReport.rows.length){showToast("Generate a report first");return;}const cols=lastReport.cols;
+  document.getElementById("printArea").innerHTML=printHeader(lastReport.title)+`<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%;font-size:11px"><tr style="background:#7B1C1C;color:#fff">${cols.map(c=>`<th>${c[0]}</th>`).join("")}</tr>${lastReport.rows.map(r=>`<tr>${cols.map(c=>`<td>${h((typeof c[1]==="function"?c[1](r):(/date|planned|closed|out/i.test(c[1])?fmt(r[c[1]]):r[c[1]]))||"")}</td>`).join("")}</tr>`).join("")}</table>`+printFooter();window.print();}
+function printHeader(title){return`<div style="font-family:Arial;padding:18px;color:#221a18"><h1 style="color:#7B1C1C;border-bottom:3px solid #C9A24B;padding-bottom:8px;margin:0 0 4px">${h(title)}</h1><p style="color:#666;font-size:12px;margin:0 0 14px">Big Ben Construction &amp; Builders · ISO 9001 · 14001 · 45001 · ${h(activeCycle())} · ${entity()==="All"?"All companies":h(entity())} · ${fmt(today())} · by ${h(OPERATOR)}</p>`;}
+function printFooter(){return`<p style="margin-top:26px;font-size:12px">Prepared by: ${h(OPERATOR)} &nbsp;&nbsp; Noted by: J. Climaco &nbsp;&nbsp; Approved by: Engr. M. Rodulfo</p></div>`;}
+function printDashboard(){const O=store.ofi.filter(pass),C=store.care.filter(pass),P=store.positive.filter(pass);const careNos=[...new Set(C.map(c=>c.no))];
+  document.getElementById("printArea").innerHTML=printHeader("Audit Dashboard Summary")
+   +`<p>OFI raised: <b>${O.length}</b> (Open ${O.filter(o=>!ofiClosed(o)).length}, Closed ${O.filter(ofiClosed).length}) · CARE: <b>${careNos.length}</b> · Positive: <b>${P.length}</b> · MTTR ${mttr()}d · FTR ${ftr()}%</p>`
+   +`<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%;font-size:12px"><tr style="background:#7B1C1C;color:#fff"><th>Section</th><th>OFI</th><th>OFI Open</th><th>OFI Closed</th><th>CARE</th><th>Positive</th></tr>`
+   +store.departments.filter(inEntity).map(d=>{const oa=O.filter(o=>o.section===d.name);return`<tr><td>${hd(d.name)}</td><td>${oa.length}</td><td>${oa.filter(o=>!ofiClosed(o)).length}</td><td>${oa.filter(ofiClosed).length}</td><td>${[...new Set(C.filter(c=>c.section===d.name).map(c=>c.no))].length}</td><td>${P.filter(p=>p.section===d.name).length}</td></tr>`;}).join("")+`</table>`+printFooter();
+  window.print();}
+function reviewPack(){const O=store.ofi.filter(pass),C=store.care.filter(pass),P=store.positive.filter(pass),PF=store.perf.filter(pass);const careNos=[...new Set(C.map(c=>c.no))];const res={RETAIN:0,"RE-EVALUATE":0,DELIST:0,Pending:0};PF.forEach(p=>res[resultOf(p)]++);const rep=careNos.filter(n=>C.some(c=>c.no===n&&(c.recurrence||"").toUpperCase()==="YES"));
+  document.getElementById("printArea").innerHTML=printHeader("Management Review Pack — ISO 9.3")
+   +`<h2 style="color:#7B1C1C">1. Audit results</h2><ul><li>OFIs: <b>${O.length}</b> (closure ${O.length?Math.round(O.filter(ofiClosed).length/O.length*100):0}%)</li><li>CARE: <b>${careNos.length}</b> · MTTR <b>${mttr()}d</b> · First-time-right <b>${ftr()}%</b></li><li>Positive observations: <b>${P.length}</b></li></ul>`
+   +`<h2 style="color:#7B1C1C">2. Auditor performance</h2><p>RETAIN ${res.RETAIN} · RE-EVALUATE ${res["RE-EVALUATE"]} · DELIST ${res.DELIST} · Pending ${res.Pending}</p>`
+   +`<h2 style="color:#7B1C1C">3. Recurring nonconformities</h2><p>${rep.length?h(rep.join(", ")):"None recorded."}</p>`+printFooter();
+  window.print();}
+function closureCert(){const sec=document.getElementById("certSection").value;const O=store.ofi.filter(pass).filter(o=>o.section===sec),C=store.care.filter(pass).filter(c=>c.section===sec);
+  const openO=O.filter(o=>!ofiClosed(o)).length,openC=[...new Set(C.map(c=>c.no))].filter(n=>!C.filter(x=>x.no===n).some(careClosed)).length;const clean=openO+openC===0;
+  document.getElementById("printArea").innerHTML=`<div style="font-family:Arial;padding:40px;text-align:center;color:#221a18"><div style="border:3px solid #C9A24B;padding:40px"><h1 style="color:#7B1C1C">Audit Closure Certificate</h1><p style="color:#666">Big Ben Construction &amp; Builders · ${h(activeCycle())}</p><h2>${h(sec)}</h2><p style="font-size:15px;margin:24px 0">${clean?"All OFIs and CAREs for this section have been satisfactorily <b>CLOSED</b>.":"<b style='color:#b3261e'>NOT YET CLEARED</b> — "+openO+" open OFI(s), "+openC+" open CARE(s) remaining."}</p><p>Issued ${fmt(today())} by ${h(OPERATOR)}</p><p style="margin-top:40px">_______________________&nbsp;&nbsp;&nbsp;_______________________&nbsp;&nbsp;&nbsp;_______________________<br>IMS Head (J. Marmeto) &nbsp; Reviewed: J. Climaco &nbsp; Approved: Engr. M. Rodulfo</p><p style="font-size:10px;color:#999;margin-top:20px">This certificate does not lock records; entries remain editable.</p></div></div>`;
+  window.print();}
+
+/* ===== 11. RENDER ALL ===== */
+function renderAll(){renderDashboard();renderProgram();renderOfi();renderCare();renderPositive();renderAuditors();renderSetup();renderReports();updateRibbon();applyDeep();}
+let _deepDone=false;
+function applyDeep(){if(_deepDone||!window._deepSection)return;_deepDone=true;const sec=window._deepSection;const btn=document.querySelector('nav.tabs button[data-view="ofi"]');if(btn)btn.click();const f=document.getElementById("ofiSectionFilter");if(f&&[...f.options].some(o=>o.value===sec)){f.value=sec;renderOfi();}}
+function updateRibbon(){const n=escalationCount();const r=document.getElementById("ribbon");if(n){r.style.display="block";r.textContent=`⚠ ${n} open item(s) past escalation threshold — needs follow-up.`;}else r.style.display="none";}
+
+/* ===== 12. VIEW MODAL ===== */
+const VIEW_FIELDS={
+  program:[["Ref","no"],["Auditor","auditor"],["Section","section"],["Procedure","procedure"],["Standard","standard"],["Planned","planned",1],["Status","status"],["Progress %","progress"],["Recurs","frequency"],["Company","entity"],["Cycle","cycle"]],
+  ofi:[["OFI #","no"],["Section","section"],["Process","process"],["Description","desc"],["Action taken","action"],["Classification","classification"],["Standard","standard"],["Status","status"],["Date raised","dateRaised",1],["Date closed","dateClosed",1],["Ref #","ref"],["Legal ref","legalRef"],["Company","entity"],["Cycle","cycle"]],
+  care:[["CARE No.","no"],["Section","section"],["Date of CARE","dateOfCare",1],["Classification","classification"],["Finding","finding"],["Follow-up date","followUpDate",1],["Followed-up by","followedUpBy"],["Recurred before","recurrence"],["Status","status"],["Close-out date","closeOutDate",1],["Legal ref","legalRef"],["Remarks","remarks"],["Company","entity"],["Cycle","cycle"]],
+  positive:[["Section","section"],["Process","process"],["Observation","observation"],["Remarks","remarks"],["Company","entity"],["Cycle","cycle"]],
+  auditor:[["Auditor","auditor"],["Section","section"],["Procedure","procedure"],["Checklist","checklist"],["Date completed","dateCompleted",1],["OFI report","ofiReport"],["CARE","care"],["Evaluation","evaluation"],["Remarks","remarks"]],
+  perf:[["Auditor","auditor"],["Section","section"],["Procedure","procedure"],["Overall score","score"],["Total questions","totalQ"],["Remarks","remarks"]]
+};
+const STATUS_OPTS={ofi:["OPEN","CLOSED"],care:["No Action Yet Started","In-Progress","Near Completion","Completed/Closed"],program:["Planned","In Progress","Completed"]};
+function openView(type,id){
+  const col=col2type2(type),rec=store[col].find(x=>x.id===id);if(!rec)return;
+  document.getElementById("viewTitle").textContent=(rec.no||rec.auditor||rec.section||"Details");
+  let html=VIEW_FIELDS[type].map(f=>{let v=rec[f[1]];if(typeof v==="boolean")v=v?"✔ Yes":"—";else if(f[2])v=fmt(v);else v=hd(v);return`<div class="vrow"><div class="vk">${f[0]}</div><div class="vv">${v}</div></div>`;}).join("");
+  if(type==="perf"&&rec.cats){html+='<div class="vrow"><div class="vk">Category scores</div><div class="vv">'+store.perfcats.map(c=>`${h(c.name)}: <b>${rec.cats[c.name]??"—"}</b>/5`).join("<br>")+`<br><br>Combined rating: <b>${(combinedRating(rec)??0).toFixed(2)}</b>/5 → ${resultOf(rec)}</div></div>`;}
+  document.getElementById("viewBody").innerHTML=html;
+  // quick status
+  const qs=document.getElementById("viewStatus");
+  if(STATUS_OPTS[type]&&IS_ADMIN){qs.style.display="flex";qs.innerHTML=`<span style="font-size:12px;color:var(--muted);font-weight:bold">Quick status:</span><select id="qsSel">${STATUS_OPTS[type].map(o=>`<option ${o===rec.status?"selected":""}>${o}</option>`).join("")}</select><button class="btn sm" onclick="quickStatus('${col}','${id}','${type}')">Update</button>`;}
+  else qs.style.display="none";
+  const eb=document.getElementById("viewEditBtn");eb.onclick=()=>{document.getElementById("viewBg").classList.remove("open");openModal(type,id);};
+  document.getElementById("viewBg").classList.add("open");
+}
+function col2type2(type){return{program:"program",ofi:"ofi",care:"care",positive:"positive",auditor:"auditors",perf:"perf"}[type];}
+function quickStatus(col,id,type){const val=document.getElementById("qsSel").value;const data={status:val};
+  if(type==="ofi"){if(val.toUpperCase()==="CLOSED")data.dateClosed=new Date().toISOString().slice(0,10);else data.dateClosed="";}
+  if(type==="care"&&val.startsWith("Completed"))data.closeOutDate=new Date().toISOString().slice(0,10);
+  updateDoc(col,id,data);document.getElementById("viewBg").classList.remove("open");showToast("Status updated");}
+
+/* ===== 13. EDIT MODAL ===== */
+let modalCtx={type:null,id:null};
+function stdOpts(s){return store.standards.map(x=>`<option ${x.name===s?"selected":""}>${x.name}</option>`).join("");}
+function classOpts(s){return'<option value=""></option>'+store.classifications.map(x=>`<option ${x.name===s?"selected":""}>${x.name}</option>`).join("");}
+function secOpts(s){return store.departments.map(d=>`<option ${d.name===s?"selected":""}>${d.name}</option>`).join("");}
+function compOpts(s){return store.companies.map(c=>`<option value="${c.code}" ${c.code===s?"selected":""}>${c.name}</option>`).join("")+`<option value="Shared" ${s==="Shared"?"selected":""}>Shared / All</option>`;}
+function cycleOpts(s){return store.cycles.map(c=>`<option ${c.name===(s||activeCycle())?"selected":""}>${c.name}</option>`).join("");}
+function audOpts(s){const n=[...new Set(store.auditors.map(a=>a.auditor))];return'<option value=""></option>'+n.map(x=>`<option ${x===s?"selected":""}>${x}</option>`).join("");}
+function opt(arr,s){return arr.map(o=>`<option ${o===s?"selected":""}>${o}</option>`).join("");}
+function colOf(t){return{program:"program",ofi:"ofi",care:"care",positive:"positive",auditor:"auditors",perf:"perf",department:"departments",company:"companies",standard:"standards",classification:"classifications",perfcat:"perfcats",cycle:"cycles"}[t];}
+function openModal(type,id){
+  if(!IS_ADMIN){showToast("View-only mode");return;}
+  modalCtx={type,id:id||null};const rec=id?store[colOf(type)].find(x=>x.id===id)||{}:{};
+  const titles={program:"Audit Assignment",ofi:"OFI Record",care:"CARE Record",positive:"Positive Observation",auditor:"Auditor Row",perf:"Performance Evaluation",department:"Section / Department",company:"Company",standard:"ISO Standard",classification:"Classification",perfcat:"Performance Category",cycle:"Audit Cycle"};
+  document.getElementById("modalTitle").textContent=(id?"Edit ":"New ")+titles[type];
+  const b=document.getElementById("modalBody");
+  if(type==="company")b.innerHTML=fld("Code","code",rec.code,"text","e.g. BBC")+fld("Company name","name",rec.name,"text");
+  else if(type==="standard")b.innerHTML=fld("Standard name","name",rec.name,"text","e.g. ISO 45001:2018","full");
+  else if(type==="classification")b.innerHTML=fld("Classification","name",rec.name,"text","e.g. Major NC","full");
+  else if(type==="cycle")b.innerHTML=fld("Cycle name","name",rec.name,"text","e.g. 2nd Internal Audit 2026","full");
+  else if(type==="perfcat")b.innerHTML=fld("Category name","name",rec.name,"text","","full")+fld("Weight","weight",rec.weight??1,"number");
+  else if(type==="department")b.innerHTML=fld("Code","code",rec.code,"text","e.g. Sec 20")+selFld("Company","entity",compOpts(rec.entity))+fld("Section / Process name","name",rec.name,"text","","full")+fld("Process owner","owner",rec.owner,"text","");
+  else if(type==="program")b.innerHTML=selFld("Auditor","auditor",audOpts(rec.auditor))+selFld("Section","section",secOpts(rec.section))+fld("Procedure","procedure",rec.procedure,"text","","full")+selFld("Standard","standard",stdOpts(rec.standard))+fld("Planned date","planned",rec.planned||"2026-06-01","date")+selFld("Status","status",opt(["Planned","In Progress","Completed"],rec.status))+fld("Progress %","progress",rec.progress??0,"number")+selFld("Recurs","frequency",opt(["None","Quarterly","Semi-Annual","Annual"],rec.frequency))+selFld("Company","entity",compOpts(rec.entity))+selFld("Cycle","cycle",cycleOpts(rec.cycle));
+  else if(type==="ofi")b.innerHTML=selFld("Section","section",secOpts(rec.section))+fld("Process / Procedure","process",rec.process,"text")+fld("OFI description","desc",rec.desc,"textarea","","full")+fld("Action taken","action",rec.action,"textarea","","full")+selFld("Classification","classification",classOpts(rec.classification))+selFld("ISO Standard","standard",stdOpts(rec.standard))+selFld("Status","status",opt(["OPEN","CLOSED"],rec.status))+fld("Date raised","dateRaised",rec.dateRaised||new Date().toISOString().slice(0,10),"date")+fld("Date closed (auto on CLOSED)","dateClosed",rec.dateClosed,"date")+fld("Ref #","ref",rec.ref,"text")+fld("Legal ref","legalRef",rec.legalRef,"text")+selFld("Company","entity",compOpts(rec.entity))+selFld("Cycle","cycle",cycleOpts(rec.cycle));
+  else if(type==="care")b.innerHTML=fld("CARE No. (same for follow-ups)","no",rec.no||nextNo("care","CARE"),"text")+selFld("Section","section",secOpts(rec.section))+fld("Date of CARE","dateOfCare",rec.dateOfCare||new Date().toISOString().slice(0,10),"date")+selFld("Classification","classification",classOpts(rec.classification))+fld("Brief details of finding","finding",rec.finding,"textarea","","full")+fld("Actual follow-up date","followUpDate",rec.followUpDate,"date")+fld("Followed-up by","followedUpBy",rec.followedUpBy,"text")+selFld("Recurred before?","recurrence",opt(["NO","YES"],rec.recurrence))+selFld("Status","status",opt(["No Action Yet Started","In-Progress","Near Completion","Completed/Closed"],rec.status))+fld("Actual close-out date","closeOutDate",rec.closeOutDate,"date")+fld("Legal ref","legalRef",rec.legalRef,"text")+fld("Remarks","remarks",rec.remarks,"text","","full")+selFld("Company","entity",compOpts(rec.entity))+selFld("Cycle","cycle",cycleOpts(rec.cycle));
+  else if(type==="positive")b.innerHTML=selFld("Section","section",secOpts(rec.section))+fld("Process / Procedure","process",rec.process,"text")+fld("Positive observation","observation",rec.observation,"textarea","","full")+fld("Remarks","remarks",rec.remarks,"text","","full")+fld("Date","date",rec.date||new Date().toISOString().slice(0,10),"date")+selFld("Company","entity",compOpts(rec.entity))+selFld("Cycle","cycle",cycleOpts(rec.cycle));
+  else if(type==="auditor")b.innerHTML=fld("Auditor name","auditor",rec.auditor,"text")+selFld("Section","section",secOpts(rec.section))+fld("Procedure / Process","procedure",rec.procedure,"text","","full")+chkFld("Audit checklist","checklist",rec.checklist)+fld("Date completed","dateCompleted",rec.dateCompleted,"date")+chkFld("OFI report","ofiReport",rec.ofiReport)+chkFld("CARE submitted","care",rec.care)+chkFld("Evaluation","evaluation",rec.evaluation)+fld("Remarks","remarks",rec.remarks,"text")+selFld("Company","entity",compOpts(rec.entity))+selFld("Cycle","cycle",cycleOpts(rec.cycle));
+  else if(type==="perf"){let cats=store.perfcats.map(c=>`<div class="field"><label>${c.name} (/5, w${c.weight||1})</label><input type="number" min="0" max="5" step="0.1" data-cat="${c.name}" value="${(rec.cats&&rec.cats[c.name])??""}" /></div>`).join("");
+    b.innerHTML=fld("Auditor name","auditor",rec.auditor,"text")+selFld("Section","section",secOpts(rec.section))+fld("Procedure / Process","procedure",rec.procedure,"text","","full")+`<div class="field full"><label>Category scores (each /5, weighted)</label></div>`+cats+fld("Overall score","score",rec.score,"number","optional")+fld("Total questions","totalQ",rec.totalQ,"number","optional")+fld("Remarks","remarks",rec.remarks,"text","","full")+selFld("Company","entity",compOpts(rec.entity))+selFld("Cycle","cycle",cycleOpts(rec.cycle))+`<div class="field full"><div class="hint">Combined rating = average of (weighted category avg) and (Score ÷ Total Q). Result auto-applies your thresholds.</div></div>`;}
+  document.getElementById("modalBg").classList.add("open");
+}
+function fld(l,n,v="",t="text",ph="",full=""){v=v??"";const i=t==="textarea"?`<textarea data-f="${n}" placeholder="${ph}">${v}</textarea>`:`<input data-f="${n}" type="${t}" value="${v}" placeholder="${ph}" />`;return`<div class="field ${full}"><label>${l}</label>${i}</div>`;}
+function selFld(l,n,o,full=""){return`<div class="field ${full}"><label>${l}</label><select data-f="${n}">${o}</select></div>`;}
+function chkFld(l,n,v){return`<div class="field"><label>${l}</label><select data-f="${n}"><option value="" ${!v?"selected":""}>— No —</option><option value="1" ${v?"selected":""}>✔ Submitted</option></select></div>`;}
+function setVal(n,v){const el=document.querySelector(`#modalBody [data-f="${n}"]`);if(el)el.value=v;}
+function closeModal(){document.getElementById("modalBg").classList.remove("open");}
+async function saveModal(){
+  const {type,id}=modalCtx,col=colOf(type),data={};
+  document.querySelectorAll("#modalBody [data-f]").forEach(el=>{let v=el.value;if(el.type==="number")v=Number(v)||0;data[el.dataset.f]=v;});
+  ["checklist","ofiReport","care","evaluation"].forEach(k=>{if(k in data)data[k]=data[k]==="1";});
+  if(type==="perf"){const cats={};document.querySelectorAll("#modalBody [data-cat]").forEach(el=>{if(el.value!=="")cats[el.dataset.cat]=Number(el.value);});data.cats=cats;}
+  if(!id){if(type==="ofi")data.no=nextNo("ofi","OFI");if(type==="program")data.no=nextNo("program","AP");}
+  if(type==="ofi"){if((data.status||"").toUpperCase()==="CLOSED"&&!data.dateClosed)data.dateClosed=new Date().toISOString().slice(0,10);if((data.status||"").toUpperCase()==="OPEN")data.dateClosed="";}
+  if(type==="care"){if((data.status||"").startsWith("Completed")&&!data.closeOutDate)data.closeOutDate=new Date().toISOString().slice(0,10);if(data.status==="No Action Yet Started"&&data.followedUpBy&&data.followUpDate)data.status="In-Progress";}
+  try{
+    if(id)await updateDoc(col,id,data);else await addDoc(col,data);
+    if(type==="program"&&data.status==="Completed"&&data.frequency&&data.frequency!=="None"){const map={Quarterly:90,"Semi-Annual":182,Annual:365};const next={...data};delete next.id;next.status="Planned";next.progress=0;next.no=nextNo("program","AP");next.planned=addDays(data.planned||new Date().toISOString().slice(0,10),map[data.frequency]||365);if(confirm("Audit completed. Auto-schedule the next "+data.frequency.toLowerCase()+" cycle for "+next.section+"?"))await addDoc("program",next);}
+    closeModal();showToast(id?"Record updated":"Record added");
+  }catch(e){alert("Save failed: "+e.message);}
+}
+function confirmDel(col,id){if(!IS_ADMIN)return;if(confirm("Delete this record?")){deleteDoc(col,id);showToast("Deleted");}}
+function showQR(section){try{section=decodeURIComponent(section);}catch(e){}const box=document.getElementById("qrBox");box.innerHTML="";const url=location.href.split("?")[0]+"?section="+encodeURIComponent(section);new QRCode(box,{text:url,width:200,height:200,colorDark:"#7B1C1C",colorLight:"#ffffff"});document.getElementById("qrTitle").textContent="QR · "+section;document.getElementById("qrCap").textContent="Scan on-site to open this section.";document.getElementById("qrBg").classList.add("open");}
+
+/* ===== 14. SEED (from your 1st Internal Audit 2026 workbook) ===== */
+const CYC="1st Internal Audit 2026";
+function buildSeed(){
+  const companies=[{code:"BBC",name:"Big Ben Construction"},{code:"BBB",name:"Big Ben Builders"}];
+  const standards=["ISO 9001","ISO 14001","ISO 45001","ISO 9001 & 14001","ISO 9001 & 45001","ISO 14001 & 45001","All Standards"].map(n=>({name:n}));
+  const classifications=["Major NC","Minor NC","OFI","Observation","Positive Observation"].map(n=>({name:n}));
+  const perfcats=[{name:"Audit Knowledge & Competence",weight:30},{name:"Independence & Objectivity",weight:20},{name:"Communication & Conduct",weight:15},{name:"Quality of Findings/Reports",weight:25},{name:"Timeliness of Submission",weight:10}];
+  const cycles=[{name:CYC}];
+  const config=[{retain:3.5,reeval:2.5,deadline:"2026-06-10"}];
+  const SECS=["Sec 01: MANAGEMENT PLANNING","Sec 02: SALES & MARKETING","Sec 03: PRODUCTION","Sec 04: DELIVERY","Sec 05: PROJECT ACQUISITION","Sec 06: PROJECT MANAGEMENT","Sec 07: PROJECT TURN-OVER","Sec 08: QA/QC","Sec 09: PURCHASING","Sec 10: INVENTORY MANAGEMENT","Sec 11: LOGISTICS","Sec 12: EQUIPMENT MAINTENANCE","Sec 13: HUMAN RESOURCE","Sec 14: INFORMATION TECHNOLOGY","Sec 15: DOCUMENTED INFORMATION","Sec 16: FINANCE & ACCOUNTING","Sec 17: BUSINESS DEVELOPMENT","Sec 18: EHS","Sec 19: CONTINUAL IMPROVEMENT"];
+  const departments=SECS.map(s=>({code:s.split(":")[0],name:s,owner:"",entity:"Shared"}));
+  const A=[["JANELLA MAE MATEO","Sec 01: MANAGEMENT PLANNING","MP: Objectives, Targets, and Program Setting"],["JANELLA MAE MATEO","Sec 13: HUMAN RESOURCE","Internal Communication"],["JANELLA MAE MATEO","Sec 14: INFORMATION TECHNOLOGY","Processing of IT Request"],
+    ["WENSLIE DE LEON","Sec 01: MANAGEMENT PLANNING","MP: Environmental Aspects & Safety Hazards Analysis",{checklist:1,ofiReport:1,dateCompleted:"2026-06-04"}],["WENSLIE DE LEON","Sec 01: MANAGEMENT PLANNING","MP: Operational Planning & Control",{checklist:1,ofiReport:1,dateCompleted:"2026-06-04"}],["WENSLIE DE LEON","Sec 19: CONTINUAL IMPROVEMENT","Handling Nonconformities and Corrective Actions"],
+    ["JEJOMAR RAMOS","Sec 01: MANAGEMENT PLANNING","MP: Identification and Evaluation of Compliance Obligation"],["JEJOMAR RAMOS","Sec 08: QA/QC","QA/QC: Inspection & Testing of Asphalt (Batch Plant)"],["JEJOMAR RAMOS","Sec 08: QA/QC","QA/QC: Inspection & Testing of Asphalt (Project Site)"],
+    ["KEIYA AGUIRRE","Sec 02: SALES & MARKETING","Sales Acquisition (RMC)"],["KEIYA AGUIRRE","Sec 02: SALES & MARKETING","Marketing & Promotions (Creatives)"],["KEIYA AGUIRRE","Sec 02: SALES & MARKETING","Sales Acquisition (Asphalt)"],["KEIYA AGUIRRE","Sec 19: CONTINUAL IMPROVEMENT","Handling of Customer Feedback and Complaints (RMC/Asphalt/BBC)"],
+    ["INAH LUCIA DUMLAO","Sec 13: HUMAN RESOURCE","Talent Acquisition"],["INAH LUCIA DUMLAO","Sec 13: HUMAN RESOURCE","Onboarding"],["INAH LUCIA DUMLAO","Sec 13: HUMAN RESOURCE","Training & Development"],["INAH LUCIA DUMLAO","Sec 10: INVENTORY MANAGEMENT","Receiving & Storage of Items – DAICHI"],["INAH LUCIA DUMLAO","Sec 10: INVENTORY MANAGEMENT","Issuance of Items – DAICHI"],["INAH LUCIA DUMLAO","Sec 10: INVENTORY MANAGEMENT","Monitoring of Fuel Issuance and Consumption – DAICHI"],["INAH LUCIA DUMLAO","Sec 10: INVENTORY MANAGEMENT","Monitoring of Scrap Disposal – DAICHI"],
+    ["JOSE MARIA TORRES","Sec 03: PRODUCTION","Pre-Batching (BBB)"],["JOSE MARIA TORRES","Sec 03: PRODUCTION","Batching of Ready Mix Concrete"],["JOSE MARIA TORRES","Sec 04: DELIVERY","Delivery of Ready Mix Concrete"],["JOSE MARIA TORRES","Sec 06: PROJECT MANAGEMENT","Mobilization – MALOLOS (Robinsons)"],["JOSE MARIA TORRES","Sec 06: PROJECT MANAGEMENT","Construction – MALOLOS (Robinsons)"],
+    ["JOHN MARK BORLONGAN","Sec 08: QA/QC","QA/QC: Raw Material Testing",{evaluation:1}],["JOHN MARK BORLONGAN","Sec 08: QA/QC","QA/QC: Product Testing"],["JOHN MARK BORLONGAN","Sec 05: PROJECT ACQUISITION","Bidding"],
+    ["ERICA JOY TAPANG","Sec 15: DOCUMENTED INFORMATION","External Communication"],["ERICA JOY TAPANG","Sec 15: DOCUMENTED INFORMATION","Document Transmittal"],
+    ["MYLYN ALMARIO","Sec 16: FINANCE & ACCOUNTING","Processing of Receivables (Batching Plant)"],["MYLYN ALMARIO","Sec 16: FINANCE & ACCOUNTING","Processing of Receivables (Construction)"],["MYLYN ALMARIO","Sec 16: FINANCE & ACCOUNTING","Processing of Payables"],["MYLYN ALMARIO","Sec 16: FINANCE & ACCOUNTING","Processing of Liquidation and Petty Cash"],
+    ["RIZA FAYE DOROTEO","Sec 13: HUMAN RESOURCE","Performance Evaluation"],["RIZA FAYE DOROTEO","Sec 13: HUMAN RESOURCE","Exit Management"],["RIZA FAYE DOROTEO","Sec 13: HUMAN RESOURCE","Handling Disciplinary Action"]];
+  const auditors=A.map(r=>({auditor:r[0],section:r[1],procedure:r[2],checklist:!!(r[3]&&r[3].checklist),ofiReport:!!(r[3]&&r[3].ofiReport),care:false,evaluation:!!(r[3]&&r[3].evaluation),dateCompleted:(r[3]&&r[3].dateCompleted)||"",entity:"Shared",cycle:CYC}));
+  const program=A.slice(0,8).map((r,i)=>({no:"AP-2026-"+String(i+1).padStart(3,"0"),auditor:r[0],section:r[1],procedure:r[2],standard:"All Standards",planned:"2026-06-0"+((i%9)+1),status:r[3]?"Completed":"In Progress",progress:r[3]?100:40,frequency:"Annual",entity:"Shared",cycle:CYC}));
+  const ofi=[
+    {no:"OFI-2026-001",section:"Sec 18: EHS",process:"EHS Org Chart",desc:"EHS Organizational Chart lacks an official effective date and formal signature of acknowledgment from top management.",classification:"OFI",standard:"ISO 45001",status:"OPEN",dateRaised:"2026-06-04",entity:"Shared",cycle:CYC},
+    {no:"OFI-2026-002",section:"Sec 18: EHS",process:"Job Descriptions",desc:"Updated EHS Job Descriptions not provided; recommend making available to define roles and authority.",classification:"OFI",standard:"ISO 45001",status:"OPEN",dateRaised:"2026-06-04",entity:"Shared",cycle:CYC},
+    {no:"OFI-2026-003",section:"Sec 18: EHS",process:"Policy Repository",desc:"Recommend Safety Dept establish an online repository for employees to access company policies.",classification:"OFI",standard:"ISO 45001",status:"OPEN",dateRaised:"2026-06-04",entity:"Shared",cycle:CYC},
+    {no:"OFI-2026-004",section:"Sec 18: EHS",process:"Appointments",desc:"Cross-check selection criteria for appointment letters; establish continuous monitoring of roles.",classification:"OFI",standard:"ISO 45001",status:"OPEN",dateRaised:"2026-06-04",entity:"Shared",cycle:CYC},
+    {no:"OFI-2026-005",section:"Sec 18: EHS",process:"PPE Monitoring",desc:"Enhance on-site PPE monitoring with regular updates or photographic evidence of compliance.",classification:"OFI",standard:"ISO 45001",status:"OPEN",dateRaised:"2026-06-04",entity:"Shared",cycle:CYC},
+    {no:"OFI-2026-006",section:"Sec 01: MANAGEMENT PLANNING",process:"Process Mapping",desc:"Process mapping and employee mental health check-ups recommended.",classification:"OFI",standard:"ISO 9001",status:"OPEN",dateRaised:"2026-06-04",entity:"Shared",cycle:CYC}];
+  const care=[{no:"CARE-2026-001",section:"Sec 18: EHS",dateOfCare:"2026-06-04",classification:"Minor NC",finding:"PPE inspection log incomplete on site.",followUpDate:"2026-06-09",followedUpBy:"W. De Leon",recurrence:"NO",status:"In-Progress",entity:"Shared",cycle:CYC}];
+  const positive=[{section:"Sec 08: QA/QC",process:"Raw Material Testing",observation:"Well-documented testing logs with clear traceability and calibration records.",date:"2026-06-05",entity:"Shared",cycle:CYC}];
+  const perf=[{auditor:"JOHN MARK BORLONGAN",section:"Sec 08: QA/QC",procedure:"QA/QC: Raw Material Testing",cats:{"Audit Knowledge & Competence":4.7,"Independence & Objectivity":4.6,"Communication & Conduct":4.5,"Quality of Findings/Reports":4.7,"Timeliness of Submission":4.4},score:97,totalQ:21,entity:"Shared",cycle:CYC}];
+  return {companies,standards,classifications,perfcats,cycles,config,departments,auditors,program,ofi,care,positive,perf};
+}
+function seedDemo(){
+  const s=buildSeed();
+  Object.keys(s).forEach(col=>{store[col]=s[col].map((r,i)=>({id:col+i,...r}));});
+  store.activity=[{id:"a0",ts:new Date().toISOString(),user:"system",action:"Loaded 1st Internal Audit 2026 reference data"}];
+}
+const SEED_ORDER=["companies","standards","classifications","perfcats","cycles","config","departments","auditors","program","ofi","care","positive","perf"];
+async function seedToCloud(){
+  if(!USE_CLOUD){showToast("Cloud not connected (demo mode)");return;}
+  if(!IS_ADMIN){showToast("Admin only");return;}
+  if(!confirm("Initialize the cloud database with master data + reference records?\n\nCollections that already have data are SKIPPED — no duplicates."))return;
+  const s=buildSeed();let wrote=0,skipped=0;
+  for(const col of SEED_ORDER){
+    if((store[col]||[]).length){skipped++;continue;}
+    for(const rec of s[col]){try{await db.collection(col).add(rec);wrote++;}catch(e){console.error(col,e);}}
+  }
+  logActivity("Initialized database ("+wrote+" records)");
+  showToast(wrote?("Initialized · "+wrote+" records added"+(skipped?(", "+skipped+" collections skipped"):"")):"Already initialized — nothing added");
+}
+window.addEventListener("DOMContentLoaded",()=>{const p=new URLSearchParams(location.search).get("section");if(p)window._deepSection=p;});
+</script>
+</body>
+</html>
